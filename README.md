@@ -2,6 +2,10 @@
 
 Formal specification for agent identity, capabilities, trust, and swarm coordination in Cordelia.
 
+## What is Cordelia?
+
+[Cordelia](https://github.com/seed-drill/cordelia-core) is a distributed persistent memory system for autonomous AI agents. It provides end-to-end encrypted, sovereign memory that agents control -- solving the session amnesia problem where every conversation starts from zero. Read the [whitepaper](https://github.com/seed-drill/cordelia-core/blob/main/WHITEPAPER.md) for the full design.
+
 ## Why This Exists
 
 MCP provides transport -- but no formal model for agent identity, capabilities, trust, swarm coordination, or memory scoping. This spec defines the contract that agents implement to participate in the Cordelia memory network.
