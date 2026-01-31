@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/seed-drill/cordelia-agent-sdk/schemas/swarm-manifest.json",
+  "title": "Cordelia Swarm Manifest",
+  "description": "Defines a swarm: goal, agent slots, coordination strategy, and group culture.",
+  "type": "object",
+  "required": ["swarm_id", "goal", "group_id", "strategy", "agents"],
+  "properties": {
+    "swarm_id": {
+      "type": "string",
+      "description": "Unique identifier for the swarm."
+    },
+    "goal": {
+      "type": "string",
+      "description": "Human-readable goal for the swarm."
+    },
+    "group_id": {
+      "type": "string",
+      "description": "Cordelia group ID for swarm communication."
+    },
+    "coordinator_agent_id": {
+      "type": "string",
+      "description": "Agent ID of the swarm coordinator (for hierarchical strategy)."
+    },
+    "strategy": {
+      "type": "string",
+      "enum": ["broadcast", "pipeline", "hierarchical"],
+      "description": "Coordination strategy."
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["slot", "agent_type"],
+        "properties": {
+          "slot": {
+            "type": "string",
+            "description": "Role name within the swarm (e.g., 'researcher', 'synthesizer')."
+          },
+          "agent_type": {
+            "type": "string",
+            "enum": ["claude-code", "swarm-worker", "autonomous", "custom"]
+          },
+          "capabilities": {
+            "$ref": "agent-capabilities.json"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Number of agents to spawn for this slot."
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "description": "Agent slot definitions."
+    },
+    "culture": {
+      "type": "object",
+      "properties": {
+        "broadcast_eagerness": {
+          "type": "string",
+          "enum": ["chatty", "moderate", "taciturn"],
+          "default": "chatty"
+        },
+        "ttl_default": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "default": null
+        },
+        "notification_policy": {
+          "type": "string",
+          "enum": ["push", "notify", "silent"],
+          "default": "push"
+        },
+        "departure_policy": {
+          "type": "string",
+          "enum": ["permissive", "standard", "restrictive"],
+          "default": "permissive"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Group culture for the swarm (defaults to chatty)."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

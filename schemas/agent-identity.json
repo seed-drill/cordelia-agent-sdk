@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/seed-drill/cordelia-agent-sdk/schemas/agent-identity.json",
+  "title": "Cordelia Agent Identity",
+  "description": "Agent registration and identity record.",
+  "type": "object",
+  "required": ["agent_id", "parent_entity_id", "agent_type", "display_name", "created_at", "public_key", "status"],
+  "properties": {
+    "agent_id": {
+      "type": "string",
+      "description": "SHA-256 hash of the agent's Ed25519 public key (hex-encoded). Also usable as entity_id.",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "parent_entity_id": {
+      "type": "string",
+      "description": "Entity ID of the parent that registered this agent."
+    },
+    "agent_type": {
+      "type": "string",
+      "enum": ["claude-code", "swarm-worker", "autonomous", "custom"],
+      "description": "Classification of the agent."
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Human-readable label for the agent.",
+      "maxLength": 256
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Registration timestamp (ISO 8601)."
+    },
+    "public_key": {
+      "type": "string",
+      "description": "Ed25519 public key (base64-encoded)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["registered", "active", "suspended", "deactivated", "removed"],
+      "description": "Current lifecycle state."
+    }
+  },
+  "additionalProperties": false
+}

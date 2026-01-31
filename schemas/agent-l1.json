@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/seed-drill/cordelia-agent-sdk/schemas/agent-l1.json",
+  "title": "Cordelia Agent L1 Extension",
+  "description": "Agent-specific fields added to the standard L1 hot context schema.",
+  "type": "object",
+  "required": ["parent_entity_id", "agent_type", "capabilities"],
+  "properties": {
+    "parent_entity_id": {
+      "type": "string",
+      "description": "Entity ID of the parent that registered this agent."
+    },
+    "agent_type": {
+      "type": "string",
+      "enum": ["claude-code", "swarm-worker", "autonomous", "custom"]
+    },
+    "capabilities": {
+      "$ref": "agent-capabilities.json",
+      "description": "Current capability set (may be updated by parent)."
+    },
+    "task": {
+      "type": "object",
+      "description": "Task-specific working memory.",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "description": "Current task objective."
+        },
+        "context": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Relevant file paths, URLs, or resource IDs."
+        },
+        "progress": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Task completion estimate (0.0 to 1.0)."
+        },
+        "findings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Accumulated findings or intermediate results."
+        }
+      },
+      "additionalProperties": true
+    },
+    "working_memory": {
+      "type": "object",
+      "description": "Arbitrary key-value working memory for the agent.",
+      "additionalProperties": true
+    },
+    "event_queue": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["event", "payload", "timestamp"],
+        "properties": {
+          "event": { "type": "string" },
+          "payload": { "type": "object" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Pending events for polling-based delivery."
+    }
+  },
+  "additionalProperties": false
+}

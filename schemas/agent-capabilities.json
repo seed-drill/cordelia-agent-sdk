@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/seed-drill/cordelia-agent-sdk/schemas/agent-capabilities.json",
+  "title": "Cordelia Agent Capabilities",
+  "description": "Capability declaration for an agent. Must not exceed parent entity's permissions.",
+  "type": "object",
+  "properties": {
+    "memory_read": {
+      "$ref": "#/$defs/MemoryScope",
+      "description": "What the agent can read."
+    },
+    "memory_write": {
+      "$ref": "#/$defs/MemoryScope",
+      "description": "What the agent can write."
+    },
+    "tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Whitelist of allowed MCP tool names.",
+      "uniqueItems": true
+    },
+    "max_parallel_ops": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 5,
+      "description": "Maximum concurrent operations."
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Agent lifetime in seconds. 0 = no limit."
+    },
+    "autonomous": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the agent can operate without parent supervision."
+    }
+  },
+  "$defs": {
+    "MemoryScope": {
+      "type": "object",
+      "properties": {
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["l1", "l2"]
+          },
+          "description": "Accessible memory layers."
+        },
+        "groups": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Accessible group IDs. Supports glob patterns (e.g., 'swarm-*')."
+        },
+        "visibility": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["private", "group", "public"]
+          },
+          "description": "Accessible visibility levels."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
