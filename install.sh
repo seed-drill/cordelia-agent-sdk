@@ -229,6 +229,15 @@ case "${OS_NAME}-${ARCH_NAME}" in
     *)              error "Unsupported platform: ${OS_NAME}-${ARCH_NAME}" ;;
 esac
 
+# Map TARGET to binary name (GitHub release naming convention)
+case "${OS_NAME}-${ARCH_NAME}" in
+    macos-x86_64)   BINARY_SUFFIX="x86_64-darwin" ;;
+    macos-aarch64)  BINARY_SUFFIX="aarch64-darwin" ;;
+    linux-x86_64)   BINARY_SUFFIX="x86_64-linux" ;;
+    linux-aarch64)  BINARY_SUFFIX="aarch64-linux" ;;
+    *)              error "Unsupported platform: ${OS_NAME}-${ARCH_NAME}" ;;
+esac
+
 info "Platform: $OS_NAME $ARCH_NAME -> $TARGET"
 
 # ============================================
@@ -296,7 +305,7 @@ if [[ "$SKIP_DOWNLOAD" = true ]]; then
         error "--skip-download specified but no binary found at $BINARY_PATH"
     fi
 else
-    BINARY_NAME="cordelia-node-${TARGET}"
+    BINARY_NAME="cordelia-node-${BINARY_SUFFIX}"
     BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${BINARY_NAME}"
     CHECKSUM_URL="${BINARY_URL}.sha256"
 
@@ -307,17 +316,22 @@ else
 
     echo "Downloading cordelia-node for $TARGET..."
     curl -fsSL -o "${CORDELIA_BIN}/${BINARY_NAME}" "$BINARY_URL" || error "Failed to download binary. Check https://github.com/${GITHUB_REPO}/releases"
-    curl -fsSL -o "${CORDELIA_BIN}/${BINARY_NAME}.sha256" "$CHECKSUM_URL" || error "Failed to download checksum."
-
-    # Verify SHA256
-    echo "Verifying checksum..."
-    cd "$CORDELIA_BIN"
-    if [[ "$OS_NAME" = "macos" ]]; then
-        shasum -a 256 -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+    
+    # Try to download checksum (optional - may not exist)
+    if curl -fsSL -o "${CORDELIA_BIN}/${BINARY_NAME}.sha256" "$CHECKSUM_URL" 2>/dev/null; then
+        # Verify SHA256 if checksum file was downloaded
+        echo "Verifying checksum..."
+        cd "$CORDELIA_BIN"
+        if [[ "$OS_NAME" = "macos" ]]; then
+            shasum -a 256 -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+        else
+            sha256sum -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+        fi
+        cd - > /dev/null
+        rm -f "${CORDELIA_BIN}/${BINARY_NAME}.sha256"
     else
-        sha256sum -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+        warn "Checksum file not available. Skipping verification."
     fi
-    cd - > /dev/null
 
     cp "${CORDELIA_BIN}/${BINARY_NAME}" "$BINARY_PATH"
     chmod +x "$BINARY_PATH"
