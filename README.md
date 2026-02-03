@@ -1,3 +1,5 @@
+<p><img src="docs/logo.svg" alt="Cordelia" width="48" height="42"></p>
+
 # Cordelia Agent SDK
 
 **The front door to Cordelia.** Install, configure, and extend persistent memory for AI agents.
