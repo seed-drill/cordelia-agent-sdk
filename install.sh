@@ -458,14 +458,11 @@ fi
 if [[ -f "$CORDELIA_HOME/node.key" ]]; then
     info "Node identity key already exists"
 else
-    "$BINARY_PATH" identity generate --output "$CORDELIA_HOME/node.key" 2>/dev/null || true
+    "$BINARY_PATH" --config "$CORDELIA_CONFIG" identity generate 2>/dev/null || true
     if [[ -f "$CORDELIA_HOME/node.key" ]]; then
         info "Node identity key generated via cordelia-node"
     else
-        # Fallback: generate ed25519 key with openssl
-        openssl genpkey -algorithm ed25519 -out "$CORDELIA_HOME/node.key" 2>/dev/null
-        chmod 0600 "$CORDELIA_HOME/node.key"
-        info "Node identity key generated (openssl ed25519 fallback)"
+        error "Failed to generate node identity key. Run: cordelia-node --config ~/.cordelia/config.toml identity generate"
     fi
 fi
 
@@ -567,12 +564,12 @@ export CORDELIA_PROXY_DIR="$PROXY_DIR"
 export CORDELIA_STORAGE=sqlite
 [[ "$NO_EMBEDDINGS" = true ]] && export CORDELIA_EMBEDDING_PROVIDER=none
 
-if [[ "$SKIP_PROXY" = true ]]; then
-    warn "Skipping L1 seed (--skip-proxy: proxy dist not available)"
-else
+if [[ -f "$PROXY_DIR/dist/server.js" ]]; then
     echo "Seeding L1 memory for $USER_ID..."
     node "$SDK_DIR/scripts/seed-l1.mjs" "$USER_ID"
     info "L1 context seeded"
+else
+    warn "Skipping L1 seed (proxy dist not built)"
 fi
 
 # ============================================

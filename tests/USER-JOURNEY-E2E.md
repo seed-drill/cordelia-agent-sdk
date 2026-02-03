@@ -194,37 +194,85 @@ claude
 
 1. **GitHub release binary may not exist yet** -- install.sh downloads from
    `github.com/seed-drill/cordelia-core/releases/latest`. If no release is
-   published, the binary download will fail. Workaround: build from source
-   or pre-stage the binary.
+   published, the binary download will fail. Workaround: use `--skip-download`
+   and pre-stage the binary from a Docker container:
+   ```bash
+   docker cp cordelia-e2e-boot1:/usr/local/bin/cordelia-node /tmp/cordelia-node
+   scp /tmp/cordelia-node testuser@<vm-ip>:/tmp/cordelia-node
+   mkdir -p ~/.cordelia/bin && cp /tmp/cordelia-node ~/.cordelia/bin/ && chmod +x ~/.cordelia/bin/cordelia-node
+   ```
 
-2. **Claude Code install on Linux** -- install.sh runs `npm install -g @anthropic-ai/claude-code`.
+2. **Private repos** -- Until repos are public, clone SDK and proxy locally
+   and rsync to the VM. Init git repos so installer detects them:
+   ```bash
+   rsync -az --exclude node_modules --exclude .git cordelia-agent-sdk/ testuser@<vm>:~/.cordelia/sdk/
+   rsync -az --exclude node_modules --exclude .git cordelia-proxy/ testuser@<vm>:~/.cordelia/proxy/
+   ssh testuser@<vm> 'cd ~/.cordelia/sdk && git init && git add -A && git commit -m init'
+   ssh testuser@<vm> 'cd ~/.cordelia/proxy && git init && git add -A && git commit -m init'
+   ```
+
+3. **Claude Code install on Linux** -- install.sh runs `npm install -g @anthropic-ai/claude-code`.
    On a clean VM this may need sudo for global npm install, or the user needs
    to configure npm prefix. The installer handles this but may prompt.
 
-3. **Keychain not available in headless VM** -- macOS Keychain and Linux
+4. **Keychain not available in headless VM** -- macOS Keychain and Linux
    secret-tool require a desktop session / D-Bus. On headless VMs, the
    installer falls back to ~/.cordelia/key file storage.
 
-4. **Proxy npm install may be slow** -- First install of better-sqlite3
-   triggers native compilation (needs python3, make, g++). The proxy
-   Dockerfile handles this but bare-metal install may need these packages.
+5. **Build tools for better-sqlite3** -- Native compilation needs
+   `build-essential` (make, g++) and `python3`. Install before running:
+   `sudo apt-get install -y build-essential python3`
 
-5. **Bootnodes may be unreachable** -- If boot1/boot2 are down or
+6. **Bootnodes may be unreachable** -- If boot1/boot2 are down or
    firewalled, the node will start but have no peers. Check bootnode
    status first.
 
+7. **Node identity key format** -- The installer's openssl fallback generates
+   PEM format keys, but cordelia-node expects libp2p protobuf format.
+   Fixed: installer now uses `cordelia-node identity generate` directly.
+   If the binary is pre-staged, ensure config.toml exists first.
+
 ## VM Provisioning (pdukvm20)
 
-```bash
-# Create test VM
-ssh rezi@pdukvm20
-# Use virt-install or virsh to create Ubuntu 24.04 VM
-# Minimal: 2 CPU, 2GB RAM, 20GB disk
-# Network: bridged to allow outbound internet
-# User: testuser with SSH key
+VM: `cordelia-e2e` on pdukvm20 (192.168.3.103, static IP).
 
-# After VM is up:
-ssh testuser@<vm-ip>
-sudo apt update && sudo apt install -y curl git
-# Ready for Phase 1
+```bash
+# Create VM (already done -- cloud image + cloud-init on br0 bridge)
+sudo virt-install \
+  --name cordelia-e2e --memory 2048 --vcpus 2 \
+  --disk /var/lib/libvirt/images/cordelia-e2e.qcow2 \
+  --disk /var/lib/libvirt/images/cidata-e2e.iso,device=cdrom \
+  --os-variant ubuntu24.04 --network bridge=br0,model=virtio \
+  --import --noautoconsole
+
+# Snapshot workflow (fast iteration):
+# Revert to clean state:
+sudo virsh snapshot-revert cordelia-e2e base-clean
+# base-clean = Ubuntu 24.04 + Node.js 22 + Claude Code + build-essential, no Cordelia
+
+# After test changes, update snapshot:
+sudo virsh snapshot-delete cordelia-e2e base-clean
+sudo virsh snapshot-create-as cordelia-e2e base-clean "description"
 ```
+
+## First E2E Run Results (2026-02-03)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| install.sh completes | PASS | With --skip-download, pre-staged binary+repos |
+| All validations pass | PASS | 0 warnings on second run |
+| cordelia-node service running | PASS | systemd user unit, active (running) |
+| Node peers connected | PASS | 2 hot peers (boot1 + boot2), ~30ms RTT |
+| L1 read returns seeded context | PASS | identity.id=testuser, version=1 |
+| L2 write + search round-trip | PASS | Write returned id, search found 1 result |
+| Portal enrollment | NOT TESTED | Requires portal access from VM |
+| Claude Code session hook | NOT TESTED | Requires interactive terminal |
+
+### Bugs Found and Fixed
+
+1. **Node identity key format** -- openssl ed25519 PEM != libp2p protobuf.
+   Fixed: use `cordelia-node identity generate` directly.
+2. **L1 seed skipped with --skip-proxy** -- Installer skipped L1 seed even when
+   proxy dist was available. Fixed: check for `dist/server.js` instead of flag.
+3. **Build tools missing** -- `better-sqlite3` native compilation needs
+   `build-essential`. Added to cloud-init and documented.
