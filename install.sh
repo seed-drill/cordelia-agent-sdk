@@ -458,7 +458,8 @@ fi
 if [[ -f "$CORDELIA_HOME/node.key" ]]; then
     info "Node identity key already exists"
 else
-    if "$BINARY_PATH" identity generate --output "$CORDELIA_HOME/node.key" 2>/dev/null; then
+    "$BINARY_PATH" identity generate --output "$CORDELIA_HOME/node.key" 2>/dev/null || true
+    if [[ -f "$CORDELIA_HOME/node.key" ]]; then
         info "Node identity key generated via cordelia-node"
     else
         # Fallback: generate ed25519 key with openssl
