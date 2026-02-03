@@ -423,12 +423,17 @@ fi
 # Store in platform keychain (no plaintext in shell profile)
 if [[ "$KEY_STORED" = false ]]; then
     if [[ "$OS_NAME" = "macos" ]]; then
-        # macOS Keychain
-        if security add-generic-password -a cordelia -s cordelia-encryption-key -w "$ENCRYPTION_KEY" -U 2>/dev/null; then
-            KEY_STORED=true
-            info "Encryption key stored in macOS Keychain"
+        # macOS Keychain -- check default keychain exists first to avoid
+        # interactive dialog on fresh user profiles with no keychain
+        if security default-keychain 2>/dev/null | grep -q 'login.keychain'; then
+            if security add-generic-password -a cordelia -s cordelia-encryption-key -w "$ENCRYPTION_KEY" -U 2>/dev/null; then
+                KEY_STORED=true
+                info "Encryption key stored in macOS Keychain"
+            else
+                warn "Could not store key in Keychain"
+            fi
         else
-            warn "Could not store key in Keychain"
+            warn "No default keychain found (fresh user profile?) -- skipping keychain storage"
         fi
     elif [[ "$OS_NAME" = "linux" ]]; then
         # Linux: GNOME Keyring via secret-tool
@@ -455,6 +460,7 @@ if [[ "$KEY_STORED" = false ]]; then
 fi
 
 # --- Node identity key ---
+CORDELIA_CONFIG="$CORDELIA_HOME/config.toml"
 if [[ -f "$CORDELIA_HOME/node.key" ]]; then
     info "Node identity key already exists"
 else
