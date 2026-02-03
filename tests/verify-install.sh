@@ -99,9 +99,12 @@ else
     fail "config.toml missing proxy_dir"
 fi
 
-# 8. Memory DB exists and is non-empty
+# 8. Memory DB exists and is non-empty (skip if proxy was mocked -- no real storage available)
 CORDELIA_DB="$CORDELIA_HOME/memory/cordelia.db"
-if [[ -f "$CORDELIA_DB" ]] && [[ -s "$CORDELIA_DB" ]]; then
+PROXY_SERVER="$CORDELIA_HOME/proxy/dist/server.js"
+if [[ -f "$PROXY_SERVER" ]] && [[ $(wc -c < "$PROXY_SERVER") -lt 100 ]]; then
+    echo "  SKIP  memory DB (proxy dist is mocked)"
+elif [[ -f "$CORDELIA_DB" ]] && [[ -s "$CORDELIA_DB" ]]; then
     pass "memory DB exists and non-empty"
 else
     fail "memory DB missing or empty"

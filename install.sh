@@ -32,6 +32,8 @@ SDK_REPO="https://github.com/seed-drill/cordelia-agent-sdk.git"
 
 USER_ID=""
 NO_EMBEDDINGS=false
+SKIP_DOWNLOAD=false
+SKIP_PROXY=false
 IS_MIGRATION=false
 BACKUP_DIR=""
 PRE_MIGRATION_L2_COUNT=""
@@ -60,6 +62,8 @@ phase() {
 for arg in "$@"; do
     case $arg in
         --no-embeddings) NO_EMBEDDINGS=true ;;
+        --skip-download) SKIP_DOWNLOAD=true ;;
+        --skip-proxy) SKIP_PROXY=true ;;
         --help|-h)
             echo "Cordelia Universal Installer"
             echo ""
@@ -68,6 +72,8 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --no-embeddings    Skip Ollama (Intel Macs, simpler setup)"
+            echo "  --skip-download    Skip binary download (use existing cordelia-node)"
+            echo "  --skip-proxy       Skip proxy clone+build (use existing proxy dist)"
             exit 0
             ;;
         *)
@@ -281,35 +287,44 @@ phase 3 "Download cordelia-node binary"
 
 mkdir -p "$CORDELIA_BIN" "$CORDELIA_LOGS"
 
-BINARY_NAME="cordelia-node-${TARGET}"
-BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${BINARY_NAME}"
-CHECKSUM_URL="${BINARY_URL}.sha256"
 BINARY_PATH="${CORDELIA_BIN}/cordelia-node"
 
-if [[ -f "$BINARY_PATH" ]]; then
-    info "cordelia-node already installed at $BINARY_PATH"
-    info "Re-downloading to check for updates..."
-fi
-
-echo "Downloading cordelia-node for $TARGET..."
-curl -fsSL -o "${CORDELIA_BIN}/${BINARY_NAME}" "$BINARY_URL" || error "Failed to download binary. Check https://github.com/${GITHUB_REPO}/releases"
-curl -fsSL -o "${CORDELIA_BIN}/${BINARY_NAME}.sha256" "$CHECKSUM_URL" || error "Failed to download checksum."
-
-# Verify SHA256
-echo "Verifying checksum..."
-cd "$CORDELIA_BIN"
-if [[ "$OS_NAME" = "macos" ]]; then
-    shasum -a 256 -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+if [[ "$SKIP_DOWNLOAD" = true ]]; then
+    if [[ -x "$BINARY_PATH" ]]; then
+        info "Skipping download (--skip-download). Using existing: $BINARY_PATH"
+    else
+        error "--skip-download specified but no binary found at $BINARY_PATH"
+    fi
 else
-    sha256sum -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+    BINARY_NAME="cordelia-node-${TARGET}"
+    BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${BINARY_NAME}"
+    CHECKSUM_URL="${BINARY_URL}.sha256"
+
+    if [[ -f "$BINARY_PATH" ]]; then
+        info "cordelia-node already installed at $BINARY_PATH"
+        info "Re-downloading to check for updates..."
+    fi
+
+    echo "Downloading cordelia-node for $TARGET..."
+    curl -fsSL -o "${CORDELIA_BIN}/${BINARY_NAME}" "$BINARY_URL" || error "Failed to download binary. Check https://github.com/${GITHUB_REPO}/releases"
+    curl -fsSL -o "${CORDELIA_BIN}/${BINARY_NAME}.sha256" "$CHECKSUM_URL" || error "Failed to download checksum."
+
+    # Verify SHA256
+    echo "Verifying checksum..."
+    cd "$CORDELIA_BIN"
+    if [[ "$OS_NAME" = "macos" ]]; then
+        shasum -a 256 -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+    else
+        sha256sum -c "${BINARY_NAME}.sha256" || error "Checksum verification failed. Binary may be corrupt."
+    fi
+    cd - > /dev/null
+
+    cp "${CORDELIA_BIN}/${BINARY_NAME}" "$BINARY_PATH"
+    chmod +x "$BINARY_PATH"
+    rm -f "${CORDELIA_BIN}/${BINARY_NAME}" "${BINARY_NAME}.sha256"
+
+    info "cordelia-node installed: $BINARY_PATH"
 fi
-cd - > /dev/null
-
-cp "${CORDELIA_BIN}/${BINARY_NAME}" "$BINARY_PATH"
-chmod +x "$BINARY_PATH"
-rm -f "${CORDELIA_BIN}/${BINARY_NAME}" "${CORDELIA_BIN}/${BINARY_NAME}.sha256"
-
-info "cordelia-node installed: $BINARY_PATH"
 
 # ============================================
 # Phase 4: SDK + proxy setup
@@ -344,24 +359,33 @@ info "SDK dependencies installed"
 # --- Clone + build proxy ---
 PROXY_DIR="$CORDELIA_HOME/proxy"
 
-if [[ -d "$PROXY_DIR/.git" ]]; then
-    info "Proxy already cloned at $PROXY_DIR"
-    cd "$PROXY_DIR"
-    git pull --ff-only 2>/dev/null || warn "Could not fast-forward proxy. Continuing with existing version."
+if [[ "$SKIP_PROXY" = true ]]; then
+    if [[ -d "$PROXY_DIR/dist" ]]; then
+        info "Skipping proxy clone+build (--skip-proxy). Using existing: $PROXY_DIR"
+    else
+        mkdir -p "$PROXY_DIR/dist"
+        info "Skipping proxy clone+build (--skip-proxy). Created stub: $PROXY_DIR/dist"
+    fi
 else
-    echo "Cloning cordelia-proxy..."
-    git clone "$PROXY_REPO" "$PROXY_DIR" || error "Failed to clone cordelia-proxy."
+    if [[ -d "$PROXY_DIR/.git" ]]; then
+        info "Proxy already cloned at $PROXY_DIR"
+        cd "$PROXY_DIR"
+        git pull --ff-only 2>/dev/null || warn "Could not fast-forward proxy. Continuing with existing version."
+    else
+        echo "Cloning cordelia-proxy..."
+        git clone "$PROXY_REPO" "$PROXY_DIR" || error "Failed to clone cordelia-proxy."
+    fi
+
+    cd "$PROXY_DIR"
+
+    if [[ ! -d "node_modules" ]]; then
+        npm install --silent
+    fi
+    info "Proxy dependencies installed"
+
+    npm run build --silent 2>/dev/null || npm run build
+    info "Proxy built"
 fi
-
-cd "$PROXY_DIR"
-
-if [[ ! -d "node_modules" ]]; then
-    npm install --silent
-fi
-info "Proxy dependencies installed"
-
-npm run build --silent 2>/dev/null || npm run build
-info "Proxy built"
 
 # ============================================
 # Phase 5: Generate credentials
@@ -535,14 +559,20 @@ if [[ ! -f "$SALT_FILE" ]]; then
 fi
 
 # Seed L1 context (seed-l1.mjs is idempotent -- skips if L1 already exists)
-echo "Seeding L1 memory for $USER_ID..."
+# Requires proxy dist for storage/crypto imports -- skip if proxy not built
 export CORDELIA_ENCRYPTION_KEY="$ENCRYPTION_KEY"
 export CORDELIA_MEMORY_ROOT="$MEMORY_ROOT"
 export CORDELIA_PROXY_DIR="$PROXY_DIR"
 export CORDELIA_STORAGE=sqlite
 [[ "$NO_EMBEDDINGS" = true ]] && export CORDELIA_EMBEDDING_PROVIDER=none
-node "$SDK_DIR/scripts/seed-l1.mjs" "$USER_ID"
-info "L1 context seeded"
+
+if [[ "$SKIP_PROXY" = true ]]; then
+    warn "Skipping L1 seed (--skip-proxy: proxy dist not available)"
+else
+    echo "Seeding L1 memory for $USER_ID..."
+    node "$SDK_DIR/scripts/seed-l1.mjs" "$USER_ID"
+    info "L1 context seeded"
+fi
 
 # ============================================
 # Phase 7: Configure Claude Code
@@ -721,12 +751,16 @@ elif [[ "$OS_NAME" = "linux" ]]; then
         mkdir -p "$UNIT_DIR"
         sed "s|__HOME__|$HOME|g" "$UNIT_SRC" > "$UNIT_DEST"
 
-        systemctl --user daemon-reload
-        systemctl --user enable cordelia-node.service
-        systemctl --user start cordelia-node.service
-        info "cordelia-node enabled and started (systemd user unit)"
-        info "Check status: systemctl --user status cordelia-node"
-        info "Logs: journalctl --user -u cordelia-node -f"
+        if systemctl --user daemon-reload 2>/dev/null; then
+            systemctl --user enable cordelia-node.service
+            systemctl --user start cordelia-node.service
+            info "cordelia-node enabled and started (systemd user unit)"
+            info "Check status: systemctl --user status cordelia-node"
+            info "Logs: journalctl --user -u cordelia-node -f"
+        else
+            warn "systemd not available (container/WSL?) -- service unit installed but not started"
+            info "Start manually: cordelia-node --config $CORDELIA_HOME/config.toml"
+        fi
     else
         warn "systemd unit not found at $UNIT_SRC -- skipping service install"
         echo "Start manually: cordelia-node --config $CORDELIA_HOME/config.toml"
