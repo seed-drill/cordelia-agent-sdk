@@ -11,11 +11,11 @@ End-to-end test of the full install-to-use journey on a clean machine.
 
 ## Test Matrix
 
-| Platform | Architecture | Test VM |
-|----------|-------------|---------|
-| Ubuntu 24.04 | x86_64 | TBD (pdukvm20) |
-| Ubuntu 24.04 | aarch64 | TBD (if available) |
-| macOS 15 | aarch64 | Russell's MacBook (clean user profile) |
+| Platform | Architecture | Test Target | Status |
+|----------|-------------|-------------|--------|
+| Ubuntu 24.04 | x86_64 | cordelia-e2e VM (192.168.3.103) on pdukvm20 | PASS |
+| macOS 15 | aarch64 | cordeliatest user on Russell's MacBook | PASS |
+| Ubuntu 24.04 | aarch64 | TBD (if available) | -- |
 
 ## Journey Steps
 
@@ -115,36 +115,35 @@ kill $PROXY_PID
 - L2 write returns success with item ID
 - Search returns the test item
 
-### Phase 4: Portal Enrollment (Optional)
+### Phase 4: Portal Enrollment
 
-Requires portal running at test.portal.seeddrill.ai:3001.
+Requires portal running (VM: 192.168.3.206:3001 or production URL).
 
 ```bash
-# 1. In portal UI: login, generate enrollment code (e.g. ABCD-EFGH)
-
-# 2. On test machine, start proxy sidecar if not running:
+# 1. Start proxy HTTP sidecar with PORTAL_URL:
 cd ~/.cordelia/proxy
 CORDELIA_STORAGE=sqlite \
   CORDELIA_MEMORY_ROOT=~/.cordelia/memory \
   CORDELIA_HTTP_PORT=3847 \
-  CORDELIA_CORE_API=http://localhost:9473 \
-  CORDELIA_NODE_TOKEN=test-token \
-  PORTAL_URL=http://test.portal.seeddrill.ai:3001 \
+  PORTAL_URL=http://192.168.3.206:3001 \
   node dist/http-server.js &
 
-# 3. Run enrollment
-~/.cordelia/bin/cordelia enroll --code ABCD-EFGH \
-  --portal http://test.portal.seeddrill.ai:3001
+# 2. In portal UI: login, generate enrollment code (e.g. ABCD-EFGH)
+
+# 3. Run enrollment script:
+CORDELIA_PROXY_URL=http://localhost:3847 \
+  cordelia-enroll.sh --code ABCD-EFGH
 
 # 4. In portal UI: click Authorize
 
-# 5. Verify device appears in portal dashboard
+# 5. Verify device appears in portal dashboard with matching device ID
 ```
 
 **Expected outcome:**
-- Enrollment completes with "enrolled" status
-- Device appears in portal device list
+- Enrollment completes with device ID + entity ID
+- Device appears in portal dashboard with same device ID
 - Bearer token stored at ~/.cordelia/portal-token
+- Device can be revoked from portal (detail page or dashboard)
 
 ### Phase 5: Claude Code Session (Manual)
 
@@ -223,7 +222,12 @@ claude
    `build-essential` (make, g++) and `python3`. Install before running:
    `sudo apt-get install -y build-essential python3`
 
-6. **Bootnodes may be unreachable** -- If boot1/boot2 are down or
+6. **Proxy HTTP port** -- The HTTP sidecar reads `CORDELIA_HTTP_PORT`, not
+   `PORT`. Default is 3847. If another proxy is on 3847, set
+   `CORDELIA_HTTP_PORT=3848` and use `CORDELIA_PROXY_URL=http://localhost:3848`
+   for enrollment.
+
+7. **Bootnodes may be unreachable** -- If boot1/boot2 are down or
    firewalled, the node will start but have no peers. Check bootnode
    status first.
 
@@ -255,7 +259,12 @@ sudo virsh snapshot-delete cordelia-e2e base-clean
 sudo virsh snapshot-create-as cordelia-e2e base-clean "description"
 ```
 
-## First E2E Run Results (2026-02-03)
+## E2E Run Results
+
+### Linux (Ubuntu 24.04 x86_64) -- 2026-02-03
+
+VM: `cordelia-e2e` on pdukvm20 (192.168.3.103).
+Pre-staged binary from Docker container, repos rsynced.
 
 | Check | Result | Notes |
 |-------|--------|-------|
@@ -265,14 +274,41 @@ sudo virsh snapshot-create-as cordelia-e2e base-clean "description"
 | Node peers connected | PASS | 2 hot peers (boot1 + boot2), ~30ms RTT |
 | L1 read returns seeded context | PASS | identity.id=testuser, version=1 |
 | L2 write + search round-trip | PASS | Write returned id, search found 1 result |
-| Portal enrollment | NOT TESTED | Requires portal access from VM |
+| Portal enrollment | PASS | device-00ae43711da42553, entity russwing, ID matches portal |
 | Claude Code session hook | NOT TESTED | Requires interactive terminal |
+
+### macOS (15 Sequoia, aarch64) -- 2026-02-03
+
+Machine: Russell's MacBook (M-series). Clean user profile `cordeliatest`.
+Binary built locally via `cargo build --release -p cordelia-node` (15MB arm64).
+SDK + proxy rsynced to ~/staging/, proxy built with npm + tsc.
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| install.sh completes | PASS | All phases, all validations green |
+| Platform detection | PASS | aarch64-apple-darwin |
+| Prerequisites | PASS | Node.js v25.4.0 (shared homebrew), Claude Code, git |
+| Encryption key storage | PASS | Falls back to ~/.cordelia/key on fresh profile (no keychain) |
+| Node identity key | PASS | Generated via cordelia-node identity generate |
+| Config + L1 seed | PASS | config.toml generated, L1 seeded via seed-l1.mjs |
+| MCP + hooks + skills | PASS | ~/.claude.json, settings.json, skills/ all configured |
+| launchd service | REGISTERED | Cannot start from sudo context; needs real GUI login |
+| Portal enrollment | PASS | device-ca73c2690998471c, entity russwing, ID matches portal |
+| Claude Code session hook | NOT TESTED | Requires interactive terminal as cordeliatest |
 
 ### Bugs Found and Fixed
 
 1. **Node identity key format** -- openssl ed25519 PEM != libp2p protobuf.
-   Fixed: use `cordelia-node identity generate` directly.
+   Fixed: use `cordelia-node identity generate` directly. (f7b51df)
 2. **L1 seed skipped with --skip-proxy** -- Installer skipped L1 seed even when
-   proxy dist was available. Fixed: check for `dist/server.js` instead of flag.
+   proxy dist was available. Fixed: check for `dist/server.js` instead of flag. (f7b51df)
 3. **Build tools missing** -- `better-sqlite3` native compilation needs
    `build-essential`. Added to cloud-init and documented.
+4. **CORDELIA_CONFIG used before defined** -- Variable referenced in Phase 5
+   (identity generate) but not defined until Phase 6. Fixed: early assignment. (f801328)
+5. **Keychain dialog on fresh macOS profiles** -- `security add-generic-password`
+   triggers interactive "keychain not found" dialog on new user profiles. Fixed:
+   check `security default-keychain` before attempting keychain store. (f801328)
+6. **Device ID mismatch** -- Portal generated device_id at authorization, proxy
+   generated a different one locally. Fixed: proxy uses device_id from portal
+   poll response. (ecfe346, 24a6e79)
