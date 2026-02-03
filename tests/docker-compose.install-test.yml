@@ -1,0 +1,49 @@
+# Cordelia Install Test Matrix
+#
+# Usage: docker compose -f tests/docker-compose.install-test.yml up --build
+#
+# Tests the installer on multiple Linux distros.
+# Each service builds with a different BASE_IMAGE.
+
+services:
+  ubuntu-2204:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.install-test
+      args:
+        BASE_IMAGE: ubuntu:22.04
+    networks:
+      - install-test
+
+  ubuntu-2404:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.install-test
+      args:
+        BASE_IMAGE: ubuntu:24.04
+    networks:
+      - install-test
+
+  debian-12:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.install-test
+      args:
+        BASE_IMAGE: debian:12
+    networks:
+      - install-test
+
+  fedora-39:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.install-test
+      args:
+        BASE_IMAGE: fedora:39
+    networks:
+      - install-test
+
+networks:
+  install-test:
+    driver: bridge
+    # Connect to core e2e backbone if running
+    # external network is optional -- peering test skips if not available

@@ -1,0 +1,21 @@
+{
+  "name": "cordelia-agent-sdk",
+  "version": "0.1.0",
+  "description": "Cordelia Agent SDK: install, hooks, skills, and agent specification",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test:install": "docker compose -f tests/docker-compose.install-test.yml up --build --abort-on-container-exit",
+    "test:health": "node scripts/check-memory-health.mjs",
+    "verify": "bash tests/verify-install.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seed-drill/cordelia-agent-sdk.git"
+  },
+  "author": "Seed Drill",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3"
+  }
+}

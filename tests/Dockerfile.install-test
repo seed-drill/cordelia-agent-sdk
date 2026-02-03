@@ -1,0 +1,55 @@
+# Cordelia Install Test - Parameterised by BASE_IMAGE
+#
+# Usage: docker build --build-arg BASE_IMAGE=ubuntu:22.04 -f tests/Dockerfile.install-test .
+#
+ARG BASE_IMAGE=ubuntu:22.04
+FROM ${BASE_IMAGE}
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HOME=/home/testuser
+
+# Install platform deps
+RUN if command -v apt-get >/dev/null 2>&1; then \
+        apt-get update && apt-get install -y curl git sudo openssl sqlite3 && \
+        rm -rf /var/lib/apt/lists/*; \
+    elif command -v dnf >/dev/null 2>&1; then \
+        dnf install -y curl git sudo openssl sqlite findutils && \
+        dnf clean all; \
+    fi
+
+# Install Node.js 22.x
+RUN if command -v apt-get >/dev/null 2>&1; then \
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+        apt-get install -y nodejs; \
+    elif command -v dnf >/dev/null 2>&1; then \
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
+        dnf install -y nodejs; \
+    fi
+
+# Create test user
+RUN useradd -m -s /bin/bash testuser && \
+    echo 'testuser ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+# Mock Claude Code CLI (just needs to be on PATH)
+RUN echo '#!/bin/bash\necho "Claude Code mock"' > /usr/local/bin/claude && \
+    chmod +x /usr/local/bin/claude
+
+# Copy SDK into container
+COPY . /opt/cordelia-agent-sdk
+RUN chown -R testuser:testuser /opt/cordelia-agent-sdk
+
+USER testuser
+WORKDIR /home/testuser
+
+# Run install (skip binary download -- not available in CI, mock it)
+RUN mkdir -p /home/testuser/.cordelia/bin && \
+    echo '#!/bin/bash\necho "cordelia-node mock"' > /home/testuser/.cordelia/bin/cordelia-node && \
+    chmod +x /home/testuser/.cordelia/bin/cordelia-node
+
+# Run install script with --no-embeddings
+RUN cd /opt/cordelia-agent-sdk && \
+    ./install.sh testuser --no-embeddings || true
+
+# Run verification
+RUN bash /opt/cordelia-agent-sdk/tests/verify-install.sh
