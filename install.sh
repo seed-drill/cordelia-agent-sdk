@@ -581,7 +581,7 @@ fi
 export CORDELIA_ENCRYPTION_KEY="$ENCRYPTION_KEY"
 export CORDELIA_MEMORY_ROOT="$MEMORY_ROOT"
 export CORDELIA_PROXY_DIR="$PROXY_DIR"
-export CORDELIA_STORAGE=sqlite
+export CORDELIA_STORAGE=node
 [[ "$NO_EMBEDDINGS" = true ]] && export CORDELIA_EMBEDDING_PROVIDER=none
 
 if [[ -f "$PROXY_DIR/dist/server.js" ]]; then
@@ -604,9 +604,9 @@ SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 mkdir -p "$CLAUDE_DIR"
 
 # --- MCP server config (NO encryption key in env -- retrieved at runtime) ---
-ENV_STORAGE="{\"CORDELIA_STORAGE\": \"sqlite\", \"CORDELIA_MEMORY_ROOT\": \"$MEMORY_ROOT\"}"
+ENV_STORAGE="{\"CORDELIA_STORAGE\": \"node\", \"CORDELIA_MEMORY_ROOT\": \"$MEMORY_ROOT\"}"
 if [[ "$NO_EMBEDDINGS" = true ]]; then
-    ENV_STORAGE="{\"CORDELIA_EMBEDDING_PROVIDER\": \"none\", \"CORDELIA_STORAGE\": \"sqlite\", \"CORDELIA_MEMORY_ROOT\": \"$MEMORY_ROOT\"}"
+    ENV_STORAGE="{\"CORDELIA_EMBEDDING_PROVIDER\": \"none\", \"CORDELIA_STORAGE\": \"node\", \"CORDELIA_MEMORY_ROOT\": \"$MEMORY_ROOT\"}"
 fi
 
 node -e "
