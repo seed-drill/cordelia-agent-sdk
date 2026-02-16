@@ -24,7 +24,7 @@ End-to-end test of the full install-to-use journey on a clean machine.
 ```bash
 # On clean VM as non-root user:
 curl -fsSL https://raw.githubusercontent.com/seed-drill/cordelia-agent-sdk/main/install.sh \
-  | sh -s -- testuser --no-embeddings
+  | bash -s -- testuser --no-embeddings
 ```
 
 **Expected outcome:**

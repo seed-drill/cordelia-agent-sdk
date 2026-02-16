@@ -26,7 +26,7 @@ This is not the node software or the MCP server. Those live in:
 ### One-line install
 
 ```bash
-curl -fsSL https://seeddrill.ai/install.sh | sh -s -- <your_user_id>
+curl -fsSL https://seeddrill.ai/install.sh | bash -s -- <your_user_id>
 ```
 
 ### Or from a clone
