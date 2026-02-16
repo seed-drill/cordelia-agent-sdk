@@ -392,9 +392,7 @@ else
 
     cd "$PROXY_DIR"
 
-    if [[ ! -d "node_modules" ]]; then
-        npm install --silent
-    fi
+    npm install --silent 2>/dev/null || npm install
     info "Proxy dependencies installed"
 
     npm run build --silent 2>/dev/null || npm run build
