@@ -783,6 +783,28 @@ elif [[ "$OS_NAME" = "linux" ]]; then
     fi
 fi
 
+# Wait for node to create its API token (needed by proxy sidecar)
+NODE_TOKEN_FILE="$CORDELIA_HOME/node-token"
+if [[ ! -f "$NODE_TOKEN_FILE" ]]; then
+    echo "Waiting for cordelia-node to generate API token..."
+    TOKEN_WAIT=0
+    TOKEN_MAX=30
+    while [[ $TOKEN_WAIT -lt $TOKEN_MAX ]]; do
+        if [[ -f "$NODE_TOKEN_FILE" ]] && [[ -s "$NODE_TOKEN_FILE" ]]; then
+            break
+        fi
+        sleep 1
+        TOKEN_WAIT=$((TOKEN_WAIT+1))
+    done
+    if [[ -f "$NODE_TOKEN_FILE" ]] && [[ -s "$NODE_TOKEN_FILE" ]]; then
+        info "Node API token ready ($TOKEN_WAIT seconds)"
+    else
+        warn "Node API token not created within ${TOKEN_MAX}s -- proxy will start without core connection"
+    fi
+else
+    info "Node API token already exists"
+fi
+
 # ============================================
 # Phase 10: Post-migration verification
 # ============================================
@@ -863,6 +885,8 @@ ERRORS=0
 
 CORDELIA_DB="$MEMORY_ROOT/cordelia.db"
 [[ -f "$CORDELIA_DB" ]] && [[ -s "$CORDELIA_DB" ]] && info "L1 memory seeded" || { warn "L1 memory missing"; ERRORS=$((ERRORS+1)); }
+
+[[ -f "$CORDELIA_HOME/node-token" ]] && [[ -s "$CORDELIA_HOME/node-token" ]] && info "Node API token" || { warn "Node API token missing (proxy won't connect to core)"; ERRORS=$((ERRORS+1)); }
 
 KEY_LEN=${#ENCRYPTION_KEY}
 [[ "$KEY_LEN" -eq 64 ]] && info "Encryption key valid (64 chars)" || { warn "Encryption key wrong length: $KEY_LEN"; ERRORS=$((ERRORS+1)); }

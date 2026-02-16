@@ -12,7 +12,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { getProxyDir } from './lib.mjs';
+import { getProxyDir, loadConfig } from './lib.mjs';
 
 const CORDELIA_HOME = path.join(os.homedir(), '.cordelia');
 const PID_FILE = path.join(CORDELIA_HOME, 'http-server.pid');
@@ -80,6 +80,21 @@ async function spawnServer(passphrase, memoryRoot) {
   };
   if (passphrase) {
     env.CORDELIA_ENCRYPTION_KEY = passphrase;
+  }
+
+  // Pass core node API connection details to the proxy sidecar
+  const config = await loadConfig();
+  if (config?.node) {
+    const transport = config.node.api_transport || 'http';
+    const addr = config.node.api_addr || '127.0.0.1:9473';
+    env.CORDELIA_CORE_API = `${transport}://${addr}`;
+  }
+  const tokenPath = path.join(CORDELIA_HOME, 'node-token');
+  try {
+    const token = (await fs.readFile(tokenPath, 'utf-8')).trim();
+    if (token) env.CORDELIA_NODE_TOKEN = token;
+  } catch {
+    // node-token not available yet -- proxy will run without core connection
   }
 
   const child = spawn('node', [serverScript, '--local'], {
