@@ -60,3 +60,19 @@ export async function writeL1(client, userId, operation, data, expectedUpdatedAt
   const text = result.content?.[0]?.text;
   return text ? JSON.parse(text) : null;
 }
+
+/**
+ * Write an L2 warm item via MCP.
+ * @param {Client} client
+ * @param {'entity'|'session'|'learning'} type
+ * @param {object} data
+ * @returns {Promise<object|null>}
+ */
+export async function writeL2(client, type, data) {
+  const result = await client.callTool({
+    name: 'memory_write_warm',
+    arguments: { type, data },
+  });
+  const text = result.content?.[0]?.text;
+  return text ? JSON.parse(text) : null;
+}

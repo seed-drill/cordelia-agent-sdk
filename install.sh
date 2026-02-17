@@ -639,6 +639,8 @@ try { settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8')); } catch {}
 if (!settings.hooks) settings.hooks = {};
 if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
 if (!settings.hooks.SessionEnd) settings.hooks.SessionEnd = [];
+if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
+if (!settings.hooks.PreCompact) settings.hooks.PreCompact = [];
 
 const startHook = {
     matcher: '',
@@ -648,17 +650,26 @@ const endHook = {
     matcher: '',
     hooks: [{ type: 'command', command: sdkDir + '/hooks/session-end.mjs', timeout: 10 }]
 };
+const postToolMemoryHook = {
+    matcher: 'Write|Edit',
+    hooks: [{ type: 'command', command: sdkDir + '/hooks/post-tool-memory.mjs', timeout: 10 }]
+};
+const preCompactHook = {
+    matcher: '',
+    hooks: [{ type: 'command', command: sdkDir + '/hooks/pre-compact.mjs', timeout: 15 }]
+};
 
 // Remove any existing cordelia hooks (migration: proxy -> SDK paths)
-settings.hooks.SessionStart = settings.hooks.SessionStart.filter(h =>
-    !(h.hooks && h.hooks.some(hh => hh.command && hh.command.includes('cordelia')))
-);
-settings.hooks.SessionEnd = settings.hooks.SessionEnd.filter(h =>
-    !(h.hooks && h.hooks.some(hh => hh.command && hh.command.includes('cordelia')))
-);
+const isCordelia = h => h.hooks && h.hooks.some(hh => hh.command && hh.command.includes('cordelia'));
+settings.hooks.SessionStart = settings.hooks.SessionStart.filter(h => !isCordelia(h));
+settings.hooks.SessionEnd = settings.hooks.SessionEnd.filter(h => !isCordelia(h));
+settings.hooks.PostToolUse = settings.hooks.PostToolUse.filter(h => !isCordelia(h));
+settings.hooks.PreCompact = settings.hooks.PreCompact.filter(h => !isCordelia(h));
 
 settings.hooks.SessionStart.push(startHook);
 settings.hooks.SessionEnd.push(endHook);
+settings.hooks.PostToolUse.push(postToolMemoryHook);
+settings.hooks.PreCompact.push(preCompactHook);
 
 fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
 "
